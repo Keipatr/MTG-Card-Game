@@ -327,7 +327,6 @@ struct ManaSymbolView: View {
                     .filter { !$0.isEmpty }
                 ForEach(components, id: \.self) { component in
                     if let number = Int(component), (1...17).contains(number) {
-                        // Display numbers from 1 to 17 as gray circles
                         Circle()
                             .fill(Color.gray)
                             .frame(width: 24, height: 24)
@@ -337,7 +336,6 @@ struct ManaSymbolView: View {
                                     .foregroundColor(.white)
                             )
                     } else {
-                        // Display mana symbols as images
                         Image(manaSymbolImageName(for: component))
                             .resizable()
                             .aspectRatio(contentMode: .fit)
@@ -357,7 +355,7 @@ struct ManaSymbolView: View {
         case     "R": return "mana_R"
         case  "G": return "mana_G"
         case   "C": return "mana_C"
-        default: return "default_mana_symbol" // A default image name if no match is found
+        default: return "default_mana_symbol"
         }
     }
 }
@@ -437,30 +435,37 @@ struct CardDetailView: View {
                                 HStack {
                                     if currentIndex > 0 {
                                         Button(action: swipeRight) {
-                                            Image(systemName: "arrow.left.circle")
-                                                .imageScale(.large)
+                                            Image(systemName: "chevron.left")
+                                                .font(.system(size: 34)).foregroundColor(.gray)
                                         }
                                     } else {
-                                        Image(systemName: "arrow.left.circle")
-                                            .imageScale(.large)
+                                        Image(systemName: "chevron.left")
+                                            .font(.system(size: 34)).foregroundColor(.gray)
                                             .opacity(0)
                                     }
                                     
-                                    Text("Legalities")
+                                    Text("Ruling")
                                         .font(.headline)
+                                        .padding(.top,10)
+                                        .padding(.bottom,10)
+                                        .padding(.horizontal,30)
+                                        .background(Color.red)
+                                        .foregroundColor(.white)
+                                        .cornerRadius(18)
                                     
                                     if currentIndex < cards.count - 1 {
                                         Button(action: swipeLeft) {
-                                            Image(systemName: "arrow.right.circle")
-                                                .imageScale(.large)
+                                            Image(systemName: "chevron.right")
+                                                .font(.system(size: 34)).foregroundColor(.gray)
                                         }
                                     } else {
-                                        Image(systemName: "arrow.right.circle")
-                                            .imageScale(.large)
+                                        Image(systemName: "chevron.right")
+                                            .font(.system(size: 34)).foregroundColor(.gray)
                                             .opacity(0)
                                     }
-                                }
+                                }.padding(.top,5)
                                 .frame(maxWidth: .infinity, alignment: .center)
+                                Text("LEGALITIES").foregroundStyle(Color(.red)).padding(.leading,10).fontWeight(.medium).padding(.top,5)
                                 if let legalities = card.legalities {
                                     let gameTypes = legalities.allLegalities
                                     if !gameTypes.isEmpty {
