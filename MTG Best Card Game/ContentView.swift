@@ -1,6 +1,5 @@
 import SwiftUI
 
-// Define the Codable structs to map the JSON structure
 struct CardList: Codable {
     var object: String
     var totalCards: Int
@@ -262,7 +261,6 @@ struct ContentView: View {
         )
         
     }
-    // Function to load and parse the JSON data
     func loadCards() {
         if let url = Bundle.main.url(forResource: "WOT-Scryfall", withExtension: "json"),
            let data = try? Data(contentsOf: url) {
@@ -346,7 +344,6 @@ struct ManaSymbolView: View {
         }
     }
     
-    // Function to return the image name for a given mana symbol
     private func manaSymbolImageName(for symbol: String) -> String {
         switch symbol {
         case "W": return "mana_W"
