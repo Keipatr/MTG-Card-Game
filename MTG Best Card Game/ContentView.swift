@@ -156,13 +156,31 @@ struct ContentView: View {
     @State private var isSortingOptionsSheetPresented = false
     @State private var selectedSortingOption: SortingOption? = nil
     @State private var currentIndex = 0
-    
+    @State private var cardDetailViewVisible = false // Added state for showing CardDetailView
+
     let columns = [
         GridItem(.flexible()),
         GridItem(.flexible()),
         GridItem(.flexible())
     ]
-    
+    var filteredAndSortedCards: [Card] {
+        var filteredCards = cards
+        
+        if !searchText.isEmpty {
+            filteredCards = filteredCards.filter { card in
+                card.name.localizedCaseInsensitiveContains(searchText)
+            }
+        }
+        
+        switch selectedSortingOption {
+        case .alphabetically?:
+            return filteredCards.sorted { $0.name < $1.name }
+        case .byRank?:
+            return filteredCards.sorted { $0.rank < $1.rank }
+        default:
+            return filteredCards
+        }
+    }
     var body: some View {
         NavigationView {
             VStack {
@@ -171,7 +189,7 @@ struct ContentView: View {
                     // Search bar
                     TextField("Search", text: $searchText)
                         .textFieldStyle(RoundedBorderTextFieldStyle())
-                        .padding(.horizontal)
+                        .padding(.leading ,23)
                     
                     // Sort button
                     Button(action: {
@@ -194,39 +212,29 @@ struct ContentView: View {
                             }
                         )
                     }
-                    Text(selectedSortingOption?.rawValue ?? "No Sorting").padding(.trailing,25)
+                    Button(action: {
+                        isSortingOptionsSheetPresented.toggle()
+                    }) {
+                        Text(selectedSortingOption?.rawValue ?? "No Sorting").padding(.trailing, 25)
+                    }
                     
-                }
+                }.padding(.top)
                 
                 ScrollView {
-                    var filteredAndSortedCards: [Card] {
-                        var filteredCards = cards
-                        
-                        if !searchText.isEmpty {
-                            filteredCards = filteredCards.filter { card in
-                                card.name.localizedCaseInsensitiveContains(searchText)
-                            }
-                        }
-                        
-                        switch selectedSortingOption {
-                        case .alphabetically?:
-                            return filteredCards.sorted { $0.name < $1.name }
-                        case .byRank?:
-                            return filteredCards.sorted { $0.rank < $1.rank }
-                        default:
-                            return filteredCards
-                        }
-                    }
+                    
                     LazyVGrid(columns: columns, spacing: 20) {
-                        ForEach(filteredAndSortedCards, id: \.id) { card in
-                            NavigationLink(destination: CardDetailView(card: card, currentIndex: $currentIndex, cards: filteredAndSortedCards)) {
-                                VStack {
-                                    CardImageView(card: card)
-                                    Text(card.name)
-                                        .font(.caption)
-                                        .lineLimit(1).multilineTextAlignment(.center)
-                                        .frame(width: 100).foregroundColor(.black)
-                                }
+                        ForEach(Array(filteredAndSortedCards.enumerated()), id: \.1.id) { (index, card) in
+                            VStack {
+                                CardImageView(card: card)
+                                Text(card.name)
+                                    .font(.caption)
+                                    .multilineTextAlignment(.center) // Remove .lineLimit(1)
+                                    .frame(width: 100)
+                                    .foregroundColor(.black)
+                            }
+                            .onTapGesture {
+                                currentIndex = index
+                                cardDetailViewVisible = true // Show the CardDetailView
                             }
                         }
                     }
@@ -241,6 +249,19 @@ struct ContentView: View {
             }
             .onAppear(perform: loadCards)
         }
+        .overlay(
+            Group {
+                if cardDetailViewVisible {
+                    CardDetailView(
+                        card: filteredAndSortedCards[currentIndex],
+                        currentIndex: $currentIndex,
+                        isVisible: $cardDetailViewVisible, cards: filteredAndSortedCards // Pass the binding here
+                    )
+                    .transition(.move(edge: .trailing)) // Optional animation
+                }
+            }
+        )
+    
     }
     // Function to load and parse the JSON data
     func loadCards() {
@@ -261,6 +282,7 @@ struct CardImageView: View {
     let card: Card
     
     var body: some View {
+        
         ZStack(alignment: Alignment(horizontal: .leading, vertical: .bottom)) {
             if let imageUris = card.imageUris {
                 AsyncImage(url: imageUris.normal) { image in
@@ -298,118 +320,182 @@ struct CardImageView: View {
 
 struct CardDetailView: View {
     @Environment(\.presentationMode) var presentationMode
-    
+    @State private var isShowingImage = false
     let card: Card
     @Binding var currentIndex: Int
+    @Binding var isVisible: Bool
+
+    
     let cards: [Card]
+    
     var body: some View {
-        let card = cards[currentIndex]
-        GeometryReader { geometry in
-            ScrollView{
-                VStack(spacing: 10)
-                {
-                    VStack(alignment: .leading) {
-                        if let artCropURL = card.imageUris?.artCrop {
-                            AsyncImage(url: artCropURL) { image in
-                                image.resizable()
-                                    .aspectRatio(contentMode: .fill)
-                                    .frame(width: geometry.size.width, height: geometry.safeAreaInsets.top + (geometry.size.width * 0.6))
-                                    .clipped()
-                                    .edgesIgnoringSafeArea(.top)
-                            } placeholder: {
-                                Color.gray
-                            }.edgesIgnoringSafeArea(.top)
-                        }
-                        Text(card.name)
-                            .font(.system(size: 19))
-                            .fontWeight(.semibold).padding(.horizontal,10).padding(.top,10)
-                        
-                        Text(card.typeLine)
-                            .font(.system(size: 18))
-                            .foregroundColor(.black)
-                            .fontWeight(.semibold).padding(.horizontal, 10)
-                        
-                        if let oracleText = card.oracleText {
-                            Text(oracleText.replacingOccurrences(of: "\n", with: "\n\n"))
-                                .font(.system(size: 16)).padding(.horizontal, 10).padding(.bottom,14)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-                    }.frame(maxWidth: .infinity)
-                        .background(Color.white)
-                        .cornerRadius(10)
-                        .offset(y: -geometry.safeAreaInsets.top)
-                        .shadow(color: .black.opacity(0.2), radius: 5, x: 0, y: 6)
-                    
-                    // Legalities section
-                    VStack(alignment: .leading) {
-                        HStack {
-                            if currentIndex > 0 {
-                                Button(action: swipeRight) {
-                                    Image(systemName: "arrow.left.circle")
-                                        .imageScale(.large)
+
+        NavigationView{
+            
+            
+            ZStack{
+                
+                let card = cards[currentIndex]
+                GeometryReader { geometry in
+                    ScrollView{
+                        VStack(spacing: 10)
+                        {
+                            VStack(alignment: .leading) {
+                                if let artCropURL = card.imageUris?.artCrop {
+                                    AsyncImage(url: artCropURL) { image in
+                                        image.resizable()
+                                            .aspectRatio(contentMode: .fill)
+                                            .frame(width: geometry.size.width, height: geometry.safeAreaInsets.top + (geometry.size.width * 0.6))
+                                            .clipped()
+                                            .edgesIgnoringSafeArea(.top)
+                                    } placeholder: {
+                                        Color.gray
+                                    }.edgesIgnoringSafeArea(.top)
+                                        .onTapGesture {
+                                            isShowingImage = true
+                                        }
                                 }
-                            } else {
-                                Image(systemName: "arrow.left.circle")
-                                    .imageScale(.large)
-                                    .opacity(0)
-                            }
-                            
-                            Text("Legalities")
-                                .font(.headline)
-                            
-                            if currentIndex < cards.count - 1 {
-                                Button(action: swipeLeft) {
-                                    Image(systemName: "arrow.right.circle")
-                                        .imageScale(.large)
+                                HStack{
+                                    Text(card.name)
+                                        .font(.system(size: 19))
+                                        .fontWeight(.semibold).padding(.horizontal,10).padding(.top,10)
+                                    
                                 }
-                            } else {
-                                Image(systemName: "arrow.right.circle")
-                                    .imageScale(.large)
-                                    .opacity(0)
-                            }
-                        }
-                        .frame(maxWidth: .infinity, alignment: .center)
-                        if let legalities = card.legalities {
-                            let gameTypes = legalities.allLegalities
-                            if !gameTypes.isEmpty {
-                                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
-                                    ForEach(gameTypes, id: \.format) { gameType in
-                                        let isLegal = gameType.legality == "legal"
-                                        let boxColor = isLegal ? Color.green : Color.gray
-                                        let text = isLegal ? "Legal" : "Not Legal"
-                                        
-                                        HStack {
-                                            Text(text).font(.system(size: 14)).frame(width: 65)
-                                                .padding(10)
-                                                .background(RoundedRectangle(cornerRadius: 10).fill(boxColor))
-                                                .foregroundColor(.black)
-                                                .frame(maxWidth: .infinity, minHeight: 40)
-                                                .alignmentGuide(.leading) { _ in 0 }
-                                            
-                                            Text(gameType.format)
-                                                .font(.system(size: 14))
-                                                .frame(maxWidth: .infinity, alignment: .leading)
-                                        }.padding(.horizontal,8)
-                                            .frame(maxWidth: .infinity)
-                                            .padding(.vertical, 5)
+                                Text(card.typeLine)
+                                    .font(.system(size: 18))
+                                    .foregroundColor(.black)
+                                    .fontWeight(.semibold).padding(.horizontal, 10)
+                                
+                                if let oracleText = card.oracleText {
+                                    Text(oracleText.replacingOccurrences(of: "\n", with: "\n\n"))
+                                        .font(.system(size: 16)).padding(.horizontal, 10).padding(.bottom,14)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
+                            }.frame(maxWidth: .infinity)
+                                .background(Color.white)
+                                .cornerRadius(10)
+                                .offset(y: -geometry.safeAreaInsets.top)
+                                .shadow(color: .black.opacity(0.2), radius: 5, x: 0, y: 6)
+                            
+                            // Legalities section
+                            VStack(alignment: .leading) {
+                                HStack {
+                                    if currentIndex > 0 {
+                                        Button(action: swipeRight) {
+                                            Image(systemName: "arrow.left.circle")
+                                                .imageScale(.large)
+                                        }
+                                    } else {
+                                        Image(systemName: "arrow.left.circle")
+                                            .imageScale(.large)
+                                            .opacity(0)
+                                    }
+                                    
+                                    Text("Legalities")
+                                        .font(.headline)
+                                    
+                                    if currentIndex < cards.count - 1 {
+                                        Button(action: swipeLeft) {
+                                            Image(systemName: "arrow.right.circle")
+                                                .imageScale(.large)
+                                        }
+                                    } else {
+                                        Image(systemName: "arrow.right.circle")
+                                            .imageScale(.large)
+                                            .opacity(0)
                                     }
                                 }
+                                .frame(maxWidth: .infinity, alignment: .center)
+                                if let legalities = card.legalities {
+                                    let gameTypes = legalities.allLegalities
+                                    if !gameTypes.isEmpty {
+                                        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
+                                            ForEach(gameTypes, id: \.format) { gameType in
+                                                let isLegal = gameType.legality == "legal"
+                                                let boxColor = isLegal ? Color.green : Color.gray
+                                                let text = isLegal ? "Legal" : "Not Legal"
+                                                
+                                                HStack {
+                                                    Text(text).font(.system(size: 14)).frame(width: 65)
+                                                        .padding(10)
+                                                        .background(RoundedRectangle(cornerRadius: 10).fill(boxColor))
+                                                        .foregroundColor(.black)
+                                                        .frame(maxWidth: .infinity, minHeight: 40)
+                                                        .alignmentGuide(.leading) { _ in 0 }
+                                                    
+                                                    Text(gameType.format)
+                                                        .font(.system(size: 14))
+                                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                                }.padding(.horizontal,8)
+                                                    .frame(maxWidth: .infinity)
+                                                    .padding(.vertical, 5)
+                                            }
+                                        }
+                                    }
+                                    
+                                }
                             }
-                            
+                            .offset(y: -geometry.safeAreaInsets.top)
+                        }.gesture(DragGesture().onEnded(handleSwipe))
+                    }
+                    .background(.white)
+                    
+                    .edgesIgnoringSafeArea(.top)
+                    
+                    .navigationBarBackButtonHidden(true)
+                    .navigationBarItems(leading: backButton)
+                    
+                }
+                if isShowingImage{
+                    Color.black.opacity(0.8)
+                        .edgesIgnoringSafeArea(.all)
+                        .onTapGesture {
+                            // Dismiss the large image popup when tapped
+                            isShowingImage = false
+                        }
+                    
+                    if let largeImageURL = card.imageUris?.large {
+                        // Display a larger image as a popup overlay
+                        AsyncImage(url: largeImageURL) { phase in
+                            switch phase {
+                            case .success(let image):
+                                image
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fit)
+                                    .padding()
+                                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                    .cornerRadius(16)
+                                    .padding(20)
+                            case .failure:
+                                // Handle failure, you can display an error image or message
+                                Image(systemName: "exclamationmark.triangle")
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fit)
+                                    .foregroundColor(.red)
+                                    .padding()
+                                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                    .cornerRadius(16)
+                                    .padding(20)
+                            case .empty:
+                                // Placeholder or loading indicator
+                                ProgressView()
+                                    .padding()
+                                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                    .cornerRadius(16)
+                                    .padding(20)
+                            @unknown default:
+                                // Handle unknown state
+                                ProgressView()
+                                    .padding()
+                                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                    .cornerRadius(16)
+                                    .padding(20)
+                            }
                         }
                     }
-                    .offset(y: -geometry.safeAreaInsets.top)
                 }
             }
-            
-            .gesture(DragGesture().onEnded(handleSwipe))
-            .edgesIgnoringSafeArea(.top)
-            
-            .navigationBarBackButtonHidden(true)
-            .navigationBarItems(leading: backButton)
-            
         }
-        
     }
     
     private func handleSwipe(_ value: DragGesture.Value) {
@@ -427,7 +513,7 @@ struct CardDetailView: View {
             currentIndex += 1
             print("Moved to next card: Index \(currentIndex)")
         } else {
-            print("No more cards on the left")
+            print("No more cards on the right")
         }
     }
     
@@ -436,12 +522,12 @@ struct CardDetailView: View {
             currentIndex -= 1
             print("Moved to previous card: Index \(currentIndex)")
         } else {
-            print("No more cards on the right")
+            print("No more cards on the left")
         }
     }
     var backButton: some View {
         Button(action: {
-            self.presentationMode.wrappedValue.dismiss()
+            isVisible = false // Set the binding to false to close the overlay
         }) {
             Image(systemName: "chevron.left")
                 .foregroundColor(.black)
