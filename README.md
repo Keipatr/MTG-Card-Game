@@ -2,7 +2,7 @@
 
 ## Overview
 
-This SwiftUI app provides an interactive way to browse and view Magic The Gathering cards. It features a custom card list view with search and sorting capabilities, detailed card views, and custom rendering of mana symbols and oracle text.
+This SwiftUI app provides an interactive way to browse and view Magic The Gathering cards. It features a custom card list view with search and sorting capabilities, detailed card views, and custom rendering of mana symbols.
 
 ## Features
 
