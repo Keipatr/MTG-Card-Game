@@ -157,7 +157,7 @@ struct ContentView: View {
     @State private var selectedSortingOption: SortingOption? = nil
     @State private var currentIndex = 0
     @State private var cardDetailViewVisible = false // Added state for showing CardDetailView
-
+    
     let columns = [
         GridItem(.flexible()),
         GridItem(.flexible()),
@@ -228,13 +228,12 @@ struct ContentView: View {
                                 CardImageView(card: card)
                                 Text(card.name)
                                     .font(.caption)
-                                    .multilineTextAlignment(.center) // Remove .lineLimit(1)
-                                    .frame(width: 100)
-                                    .foregroundColor(.black)
+                                    .multilineTextAlignment(.center)
+                                
                             }
                             .onTapGesture {
                                 currentIndex = index
-                                cardDetailViewVisible = true // Show the CardDetailView
+                                cardDetailViewVisible = true
                             }
                         }
                     }
@@ -255,13 +254,13 @@ struct ContentView: View {
                     CardDetailView(
                         card: filteredAndSortedCards[currentIndex],
                         currentIndex: $currentIndex,
-                        isVisible: $cardDetailViewVisible, cards: filteredAndSortedCards // Pass the binding here
+                        isVisible: $cardDetailViewVisible, cards: filteredAndSortedCards
                     )
-                    .transition(.move(edge: .trailing)) // Optional animation
+                    .transition(.move(edge: .trailing))
                 }
             }
         )
-    
+        
     }
     // Function to load and parse the JSON data
     func loadCards() {
@@ -288,17 +287,17 @@ struct CardImageView: View {
                 AsyncImage(url: imageUris.normal) { image in
                     image.resizable()
                 } placeholder: {
-                    Color.gray.frame(width: 100, height: 140)
+                    Image("placeholder_mtg").resizable()
                 }
-                .frame(width: 100, height: 140)
-                .cornerRadius(5)
+                .frame(width: 110, height: 150)
+                .cornerRadius(6)
                 
                 HStack(spacing: 4) {
                     if card.foil == true {
                         Text("F")
                             .font(.caption)
                             .fontWeight(.bold)
-                            .padding(4)
+                            .padding(3)
                             .background(Color.yellow)
                             .foregroundColor(.black)
                             .cornerRadius(10)
@@ -318,18 +317,64 @@ struct CardImageView: View {
     }
 }
 
+struct ManaSymbolView: View {
+    let manaCost: String?
+    
+    var body: some View {
+        HStack(spacing: 2) {
+            if let manaCost = manaCost {
+                let components = manaCost.components(separatedBy: CharacterSet(charactersIn: "{}"))
+                    .filter { !$0.isEmpty }
+                ForEach(components, id: \.self) { component in
+                    if let number = Int(component), (1...17).contains(number) {
+                        // Display numbers from 1 to 17 as gray circles
+                        Circle()
+                            .fill(Color.gray)
+                            .frame(width: 24, height: 24)
+                            .overlay(
+                                Text("\(number)")
+                                    .font(.system(size: 14))
+                                    .foregroundColor(.white)
+                            )
+                    } else {
+                        // Display mana symbols as images
+                        Image(manaSymbolImageName(for: component))
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .frame(width: 24, height: 24)
+                    }
+                }
+            }
+        }
+    }
+    
+    // Function to return the image name for a given mana symbol
+    private func manaSymbolImageName(for symbol: String) -> String {
+        switch symbol {
+        case "W": return "mana_W"
+        case "U": return "mana_U"
+        case "B": return "mana_B"
+        case     "R": return "mana_R"
+        case  "G": return "mana_G"
+        case   "C": return "mana_C"
+        default: return "default_mana_symbol" // A default image name if no match is found
+        }
+    }
+}
+
+
 struct CardDetailView: View {
     @Environment(\.presentationMode) var presentationMode
     @State private var isShowingImage = false
     let card: Card
     @Binding var currentIndex: Int
     @Binding var isVisible: Bool
-
+    
     
     let cards: [Card]
     
     var body: some View {
-
+        
         NavigationView{
             
             
@@ -349,18 +394,28 @@ struct CardDetailView: View {
                                             .clipped()
                                             .edgesIgnoringSafeArea(.top)
                                     } placeholder: {
-                                        Color.gray
+                                        Color(red: 44 / 255, green: 61 / 255, blue: 81 / 255).frame(width: geometry.size.width, height: geometry.safeAreaInsets.top + (geometry.size.width * 0.6))
                                     }.edgesIgnoringSafeArea(.top)
                                         .onTapGesture {
                                             isShowingImage = true
                                         }
                                 }
-                                HStack{
+                                
+                                HStack {
                                     Text(card.name)
                                         .font(.system(size: 19))
-                                        .fontWeight(.semibold).padding(.horizontal,10).padding(.top,10)
+                                        .fontWeight(.semibold)
+                                        .padding(.horizontal, 10)
+                                        .padding(.top, 10)
                                     
-                                }
+                                    Spacer()
+                                    
+                                    ManaSymbolView(manaCost: card.manaCost).padding(.trailing,10)
+                                }.frame(maxWidth: .infinity, alignment: .leading)
+                                
+                                
+                                
+                                
                                 Text(card.typeLine)
                                     .font(.system(size: 18))
                                     .foregroundColor(.black)
@@ -412,15 +467,16 @@ struct CardDetailView: View {
                                         LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
                                             ForEach(gameTypes, id: \.format) { gameType in
                                                 let isLegal = gameType.legality == "legal"
-                                                let boxColor = isLegal ? Color.green : Color.gray
-                                                let text = isLegal ? "Legal" : "Not Legal"
+                                                let isBanned = gameType.legality == "banned"
                                                 
+                                                let boxColor: Color = isLegal ? Color.green : (isBanned ? Color.red : Color.gray.opacity(0.6))
+                                                let textColor: Color = isLegal || isBanned ? Color.white : Color.black
+                                                let text: String = isLegal ? "Legal" : (isBanned ? "Banned" : "Not Legal")
                                                 HStack {
                                                     Text(text).font(.system(size: 14)).frame(width: 65)
                                                         .padding(10)
                                                         .background(RoundedRectangle(cornerRadius: 10).fill(boxColor))
-                                                        .foregroundColor(.black)
-                                                        .frame(maxWidth: .infinity, minHeight: 40)
+                                                        .foregroundColor(textColor)                                                        .frame(maxWidth: .infinity, minHeight: 40)
                                                         .alignmentGuide(.leading) { _ in 0 }
                                                     
                                                     Text(gameType.format)
@@ -428,7 +484,7 @@ struct CardDetailView: View {
                                                         .frame(maxWidth: .infinity, alignment: .leading)
                                                 }.padding(.horizontal,8)
                                                     .frame(maxWidth: .infinity)
-                                                    .padding(.vertical, 5)
+                                                    .padding(.vertical, 3)
                                             }
                                         }
                                     }
@@ -450,7 +506,6 @@ struct CardDetailView: View {
                     Color.black.opacity(0.8)
                         .edgesIgnoringSafeArea(.all)
                         .onTapGesture {
-                            // Dismiss the large image popup when tapped
                             isShowingImage = false
                         }
                     
@@ -467,7 +522,6 @@ struct CardDetailView: View {
                                     .cornerRadius(16)
                                     .padding(20)
                             case .failure:
-                                // Handle failure, you can display an error image or message
                                 Image(systemName: "exclamationmark.triangle")
                                     .resizable()
                                     .aspectRatio(contentMode: .fit)
@@ -477,7 +531,6 @@ struct CardDetailView: View {
                                     .cornerRadius(16)
                                     .padding(20)
                             case .empty:
-                                // Placeholder or loading indicator
                                 ProgressView()
                                     .padding()
                                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -497,6 +550,7 @@ struct CardDetailView: View {
             }
         }
     }
+    
     
     private func handleSwipe(_ value: DragGesture.Value) {
         let swipeDistance = value.translation.width
@@ -527,7 +581,7 @@ struct CardDetailView: View {
     }
     var backButton: some View {
         Button(action: {
-            isVisible = false // Set the binding to false to close the overlay
+            isVisible = false
         }) {
             Image(systemName: "chevron.left")
                 .foregroundColor(.black)
